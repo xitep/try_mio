@@ -1,0 +1,9 @@
+[package]
+name = "mio-server"
+version = "0.1.0"
+authors = ["Petr Novotnik <petr.novotnik@firma.seznam.cz>"]
+
+[dependencies]
+mio = "0.5"
+log = "0.3"
+env_logger = "0.3"

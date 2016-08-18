@@ -1,0 +1,4 @@
+- mio-server - a tcp server (using raw mio) with a simple protocol
+- mio-client - a client (using raw mio) to make N requests against mio-server
+- blocking-client - a client (using std::net::TcpStream) to request N requests against mio-server
+- futures-client - a client (using futures-rs) to make N requests against mio-server

@@ -1,0 +1,11 @@
+[package]
+name = "mio-client"
+version = "0.1.0"
+authors = ["Novotnik, Petr <petr.novotnik@firma.seznam.cz>"]
+
+[dependencies]
+mio = "0.5"
+log = "0.3"
+env_logger = "0.3"
+fnv = "1.0"
+time = "0.1"

@@ -1,0 +1,2 @@
+[workspace]
+members = ["mio-server", "mio-client", "blocking-client", "futures-client"]

@@ -1,0 +1,11 @@
+[package]
+name = "futures-client"
+version = "0.1.0"
+authors = ["Petr Novotnik <pnovotnik@googlemail.com>"]
+
+[dependencies]
+futures = { git = "https://github.com/alexcrichton/futures-rs" }
+futures-io = { git = "https://github.com/alexcrichton/futures-rs" }
+futures-mio = { git = "https://github.com/alexcrichton/futures-rs" }
+log = "0.3"
+env_logger = "0.3"
