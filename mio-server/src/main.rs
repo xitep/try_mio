@@ -6,10 +6,11 @@
 /// Bytes: 6 ASCII digits (zero left padded) specifying number of bytes
 /// Echo: Any byte, specifying the character to echo back
 ///
-/// ClientResponse: After approx. `Delay` seconds: 6 ASCII digits
-/// (zero left padded) specifying the number of bytes of the payload
-/// following (equals to `Bytes` from the corresponding request.)
-/// Repeated `Echo` character/byte `Bytes` times.
+/// ClientResponse:
+/// After approx. `Delay` seconds: 6 ASCII digits (zero left padded)
+/// specifying the number of bytes of the payload following (equals to
+/// `Bytes` from the corresponding request) followed by the `Echo`
+/// character/byte repeated `Bytes` times.
 ///
 /// Client protocol errors are not tolarated; the server will
 /// disconnect a client upon arrival of invalid requests.
