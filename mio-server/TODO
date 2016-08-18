@@ -1,2 +1,0 @@
-[] Implement a very simple server to accept a connection read a for digit number and write back that many bytes (e.g. random, and with some delay simulating high latencies.)
-[] Implement a client to connect up to N servers (see above) and make N requests to each.
