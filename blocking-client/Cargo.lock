@@ -1,0 +1,4 @@
+[root]
+name = "blocking-client"
+version = "0.1.0"
+
