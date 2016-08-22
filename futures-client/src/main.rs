@@ -61,5 +61,4 @@ fn main() {
         let data = rx.recv().unwrap();
         println!("{:?} - {}", now.elapsed(), String::from_utf8_lossy(&data));
     }
-    handle.shutdown();
 }

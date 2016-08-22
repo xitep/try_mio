@@ -51,9 +51,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "futures"
 version = "0.1.0"
-source = "git+https://github.com/alexcrichton/futures-rs#65e65e37da52394830d3a12ce84c0119656e6139"
+source = "git+https://github.com/alexcrichton/futures-rs#9337886d36eade593d7654a49c8973745d53a9cc"
 dependencies = [
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
+ "scoped-tls 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
@@ -70,7 +71,7 @@ dependencies = [
 [[package]]
 name = "futures-io"
 version = "0.1.0"
-source = "git+https://github.com/alexcrichton/futures-rs#65e65e37da52394830d3a12ce84c0119656e6139"
+source = "git+https://github.com/alexcrichton/futures-rs#9337886d36eade593d7654a49c8973745d53a9cc"
 dependencies = [
  "futures 0.1.0 (git+https://github.com/alexcrichton/futures-rs)",
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -79,7 +80,7 @@ dependencies = [
 [[package]]
 name = "futures-mio"
 version = "0.1.0"
-source = "git+https://github.com/alexcrichton/futures-rs#65e65e37da52394830d3a12ce84c0119656e6139"
+source = "git+https://github.com/alexcrichton/futures-rs#9337886d36eade593d7654a49c8973745d53a9cc"
 dependencies = [
  "futures 0.1.0 (git+https://github.com/alexcrichton/futures-rs)",
  "futures-io 0.1.0 (git+https://github.com/alexcrichton/futures-rs)",
