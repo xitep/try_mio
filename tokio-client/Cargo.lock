@@ -24,7 +24,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 [[package]]
 name = "bytes"
 version = "0.4.0-dev"
-source = "git+https://github.com/carllerche/bytes#be23af6bb7492d18ddc3696bac829d66db361ca7"
+source = "git+https://github.com/carllerche/bytes#38abb8074b87f226c32213ebb1bee7752b43278c"
 dependencies = [
  "log 0.3.6 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
@@ -86,7 +86,7 @@ dependencies = [
 [[package]]
 name = "mio"
 version = "0.6.0-dev"
-source = "git+https://github.com/carllerche/mio?branch=dev#d6318bb4f2630f9729fbb02bab33f0a4eb946c6a"
+source = "git+https://github.com/carllerche/mio?branch=dev#0e28a84e102095ba4bdaf9090416d3365c4e4e5f"
 dependencies = [
  "kernel32-sys 0.2.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "lazycell 0.4.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -205,7 +205,7 @@ dependencies = [
 [[package]]
 name = "tokio"
 version = "0.1.0"
-source = "git+https://github.com/tokio-rs/tokio#618f6f6ac9a107c5f9e65b87b591a2f9bba61a5f"
+source = "git+https://github.com/tokio-rs/tokio#d282450a6d5e491bb98e1b971bc0e80fc445c1cb"
 dependencies = [
  "bytes 0.4.0-dev (git+https://github.com/carllerche/bytes)",
  "futures 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",

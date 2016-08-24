@@ -14,10 +14,8 @@ use tokio::Service;
 use tokio::io::{Readiness, Transport};
 use tokio::proto::pipeline;
 use tokio::reactor::{Reactor, ReactorHandle};
-
-pub struct Client {
-    reactor: Option<ReactorHandle>,
-}
+use tokio::tcp::TcpStream;
+use tokio::util::future::{Empty, Val};
 
 #[derive(Debug)]
 pub struct Request {
@@ -44,25 +42,31 @@ impl Request {
     }
 }
 
-pub type ClientHandle = pipeline::ClientHandle<Request, Vec<u8>, io::Error>;
+// --------------------------------------------------------------------
+
+pub struct Client {
+    inner: pipeline::ClientHandle<Transmit<TcpStream>, Empty<(), io::Error>, io::Error>,
+}
 
 impl Client {
-    pub fn new() -> Client {
-        Client { reactor: None }
+    pub fn connect(reactor: &ReactorHandle, addr: &SocketAddr) -> Client {
+        let addr = addr.clone();
+        let ch = pipeline::connect(reactor, move || {
+            let stream = try!(TcpStream::connect(&addr));
+            Ok(Transmit::new(stream))
+        });
+        Client { inner: ch }
     }
+}
 
-    pub fn connect(self, addr: &SocketAddr) -> io::Result<ClientHandle> {
-        let reactor = match self.reactor {
-            Some(r) => r,
-            None => {
-                let reactor = try!(Reactor::default());
-                let handle = reactor.handle();
-                reactor.spawn();
-                handle
-            }
-        };
-        Ok(pipeline::connect(&reactor, addr.clone(),
-                             |stream| Ok(Transmit::new(stream))))
+impl Service for Client {
+    type Req = Request;
+    type Resp = Vec<u8>;
+    type Error = io::Error;
+    type Fut = Val<Self::Resp, Self::Error>;
+
+    fn call(&self, req: Self::Req) -> Self::Fut {
+        self.inner.call(pipeline::Message::WithoutBody(req))
     }
 }
 
@@ -197,13 +201,25 @@ fn main() {
     let addr = "127.0.0.1:10001".parse().unwrap();
     let n = 2u32;
 
-    let client = Client::new().connect(&addr).unwrap();
+    let handle = {
+        let reactor = Reactor::default().unwrap();
+        let handle = reactor.handle();
+        reactor.spawn();
+        handle
+    };
+
+    let mut clients = Vec::with_capacity(2);
+    clients.push(Client::connect(&handle, &addr));
+    clients.push(Client::connect(&handle, &addr));
 
     let mut fs = Vec::with_capacity(n as usize);
     for i in 0..n {
-        fs.push(client.call(Request::new(10 + i, 2, b'c' + i as u8)));
+        for client in &clients {
+            let r = Request::new(10 + i, 2 + i as u8, b'c' + i as u8);
+            fs.push(client.call(r));
+        }
     }
-    println!("placed {} requests (on one client) ...", n);
+    println!("placed {} requests ...", n);
 
     println!("... awaiting responses");
     let resp = await(futures::collect(fs)).unwrap();
@@ -211,7 +227,7 @@ fn main() {
         println!("awaited response: (len: {}) => {:?}", r.len(), r);
     }
 
-    drop(client);
+    drop(clients);
 }
 
 // Why this isn't in futures-rs, I do not know...
