@@ -39,10 +39,10 @@ fn main() {
     let (tx, rx) = mpsc::channel();
     for _ in 0..n {
         let tx = tx.clone();
-        handle.clone().tcp_connect(&addr)
-            .and_then(|socket| {
-                futures_io::write_all(socket, "03000123x")
-            }).and_then(|(socket, _)| {
+        handle.clone()
+            .tcp_connect(&addr)
+            .and_then(|socket| futures_io::write_all(socket, "03000123x"))
+            .and_then(|(socket, _)| {
                 futures_io::read_exact(socket, [0u8; 6])
                     .and_then(|(socket, buf)| {
                         use std::str;
