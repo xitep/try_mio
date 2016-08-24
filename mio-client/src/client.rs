@@ -119,9 +119,6 @@ impl ProtocolRequestWriter {
     }
 }
 
-//
-// XXX make sure to parse the number of bytes of the payload from the response itself
-//
 #[derive(Default)]
 struct ResponsePreemble {
     pos: u16, // ~ current write position into buf
