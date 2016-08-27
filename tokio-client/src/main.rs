@@ -1,3 +1,4 @@
+extern crate bytes;
 extern crate tokio;
 extern crate futures;
 #[macro_use]
@@ -7,11 +8,14 @@ extern crate env_logger;
 use std::io;
 use std::net::SocketAddr;
 use std::str;
+use std::u32;
+
+use bytes::{BlockBuf, MutBuf, Source};
 
 use futures::Future;
 
 use tokio::Service;
-use tokio::io::{Readiness, Transport};
+use tokio::io::{Framed, Parse, Readiness, Serialize, Transport};
 use tokio::proto::pipeline;
 use tokio::reactor::{Reactor, ReactorHandle};
 use tokio::tcp::TcpStream;
@@ -34,26 +38,24 @@ impl Request {
         }
         Request { bytes: bytes, delay: delay, echo: echo }
     }
-
-    fn into_bytes(&self, out: &mut Vec<u8>) {
-        use std::io::Write;
-        let _ = write!(out, "{:>02}{:>06}", self.delay, self.bytes);
-        out.push(self.echo);
-    }
 }
 
 // --------------------------------------------------------------------
 
 pub struct Client {
-    inner: pipeline::ClientHandle<Transmit<TcpStream>, Empty<(), io::Error>, io::Error>,
+    inner: pipeline::Client<Request, Vec<u8>, Empty<(), io::Error>, io::Error>,
 }
+
+type ReqFrame = pipeline::Frame<Request, io::Error>;
+type RespFrame = pipeline::Frame<Vec<u8>, io::Error>;
 
 impl Client {
     pub fn connect(reactor: &ReactorHandle, addr: &SocketAddr) -> Client {
         let addr = addr.clone();
         let ch = pipeline::connect(reactor, move || {
             let stream = try!(TcpStream::connect(&addr));
-            Ok(Transmit::new(stream))
+            Ok(Framed::new(stream, Parser::new(), Serializer,
+                           BlockBuf::new(2, 512), BlockBuf::default()))
         });
         Client { inner: ch }
     }
@@ -70,126 +72,55 @@ impl Service for Client {
     }
 }
 
-struct Transmit<T> {
-    inner: T,
-    rd: Vec<u8>,
-    wr: io::Cursor<Vec<u8>>,
-}
+struct Serializer;
 
-impl<T> Transmit<T>
-    where T: io::Read + io::Write + Readiness
-{
-    fn new(inner: T) -> Self {
-        Transmit {
-            inner: inner,
-            rd: Vec::new(),
-            wr: io::Cursor::new(Vec::new()),
-        }
-    }
-}
-
-type ReqFrame = pipeline::Frame<Request, io::Error>;
-type RespFrame = pipeline::Frame<Vec<u8>, io::Error>;
-
-impl<T> Transport for Transmit<T>
-    where T: io::Read + io::Write + Readiness
-{
+impl Serialize for Serializer {
     type In = ReqFrame;
-    type Out = RespFrame;
 
-    fn read(&mut self) -> io::Result<Option<RespFrame>> {
-        loop {
-            // ~ first try to process so-far obtained data
-            if self.rd.len() >= 6 {
-                let n = str::from_utf8(&self.rd[..6])
-                    .unwrap()
-                    .parse::<u32>()
-                    .unwrap();
-                if self.rd.len() >= n as usize + 6 {
-                    let mut body = Vec::with_capacity(n as usize + 1);
-                    body.extend_from_slice(&self.rd[6..(n as usize + 6)]);
-
-                    if self.rd.len() == n as usize + 6 {
-                        self.rd.truncate(0);
-                    } else {
-                        self.rd = self.rd.split_off(n as usize + 6);
-                    }
-                    return Ok(Some(pipeline::Frame::Message(body)));
-                }
-            }
-
-            // ~ now try to read-in new data
-            match self.inner.read_to_end(&mut self.rd) {
-                Ok(0) => return Ok(Some(pipeline::Frame::Done)),
-                Ok(_) => {}
-                Err(e) => {
-                    if e.kind() == io::ErrorKind::WouldBlock {
-                        return Ok(None);
-                    }
-                    return Err(e);
-                }
-            }
-        }
-    }
-
-    fn write(&mut self, req: ReqFrame) -> io::Result<Option<()>> {
-        match req {
-            pipeline::Frame::Message(req) => {
-                if self.wr.position() < self.wr.get_ref().len() as u64 {
-                    return Err(io::Error::new(
-                        io::ErrorKind::Other, "transport has pending writes"));
-                }
-
-                // serialize the request into the write buffer
-                { let out = self.wr.get_mut();
-                  unsafe { out.set_len(0); }
-                  req.into_bytes(out);
-                }
-                // reset the writer to its beginning
-                self.wr.set_position(0);
-
-                // try flusing the write buffer
-                self.flush()
+    fn serialize(&mut self, msg: Self::In, out: &mut BlockBuf) {
+        match msg {
+            pipeline::Frame::Message(msg) => {
+                use std::io::Write;
+                let mut buf = [0u8; 9];
+                let _ = write!(&mut &mut buf[..], "{:02}{:06}", msg.delay, msg.bytes);
+                buf[8] = msg.echo;
+                out.write_slice(&buf[..]);
             }
             _ => unimplemented!(),
         }
     }
-
-    fn flush(&mut self) -> io::Result<Option<()>> {
-        loop {
-            let r = {
-                let pos = self.wr.position() as usize;
-                let data = &self.wr.get_ref()[pos..];
-                if data.is_empty() {
-                    return Ok(Some(()));
-                }
-                self.inner.write(data)
-            };
-            match r {
-                Ok(n) => {
-                    let p = self.wr.position() + n as u64;
-                    self.wr.set_position(p);
-                }
-                Err(e) => {
-                    if e.kind() == io::ErrorKind::WouldBlock {
-                        return Ok(None);
-                    }
-                    return Err(e);
-                }
-            }
-        }
-    }
 }
 
-impl<T> Readiness for Transmit<T>
-    where T: Readiness
-{
-    fn is_readable(&self) -> bool {
-        self.inner.is_readable() || !self.rd.is_empty()
-    }
+struct Parser {
+    size: u32
+}
 
-    fn is_writable(&self) -> bool {
-        self.wr.position() == self.wr.get_ref().len() as u64
+impl Parser {
+    fn new() -> Self { Parser { size: u32::max_value() } }
+}
+
+impl Parse for Parser {
+    type Out = RespFrame;
+
+    fn parse(&mut self, buf: &mut BlockBuf) -> Option<Self::Out> {
+        if self.size == u32::max_value() {
+            if buf.len() < 6 {
+                return None;
+            }
+            let mut bb = [0u8; 6];
+            {
+                let mut cursor = io::Cursor::new(&mut bb);
+                buf.shift(6).copy_to(&mut cursor);
+            }
+            self.size = str::from_utf8(&bb[..]).unwrap().parse::<u32>().unwrap();
+        }
+
+        if buf.len() < self.size as usize{
+            return None;
+        }
+        let mut resp = Vec::with_capacity(self.size as usize);
+        buf.shift(self.size as usize).copy_to(&mut resp);
+        Some(pipeline::Frame::Message(resp))
     }
 }
 

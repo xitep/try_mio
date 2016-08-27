@@ -6,5 +6,6 @@ authors = ["Petr Novotnik <pnovotnik@googlemail.com>"]
 [dependencies]
 tokio = { git = "https://github.com/tokio-rs/tokio" }
 futures = "0.1.0"
+bytes = { git = "https://github.com/carllerche/bytes.git" }
 log = "0.3"
 env_logger = "0.3"
