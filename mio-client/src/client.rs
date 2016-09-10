@@ -31,8 +31,11 @@ pub struct ProtocolRequest<T> {
 
 impl<T> fmt::Debug for ProtocolRequest<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "ProtocolRequest {{ bytes: {}, delay: {}, echo: {}",
-               self.bytes, self.delay, self.echo)
+        write!(f,
+               "ProtocolRequest {{ bytes: {}, delay: {}, echo: {}",
+               self.bytes,
+               self.delay,
+               self.echo)
     }
 }
 
@@ -44,7 +47,12 @@ impl<T> ProtocolRequest<T> {
         if delay > 99 {
             panic!("Invalid delay (delay > 99): {}", delay);
         }
-        ProtocolRequest { bytes: bytes, delay: delay, echo: echo, loopback_data: loopback_data }
+        ProtocolRequest {
+            bytes: bytes,
+            delay: delay,
+            echo: echo,
+            loopback_data: loopback_data,
+        }
     }
 }
 
@@ -58,19 +66,24 @@ struct HandlerRequest<T> {
 
 impl<T> fmt::Debug for HandlerRequest<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "HandlerRequest {{ client: {}, req: {:?} }}", self.client, self.req)
+        write!(f,
+               "HandlerRequest {{ client: {}, req: {:?} }}",
+               self.client,
+               self.req)
     }
 }
 
 struct ProtocolRequestWriter {
     pos: u32,
-    buf: [u8; 9]
+    buf: [u8; 9],
 }
 
 impl fmt::Debug for ProtocolRequestWriter {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, r#"ProtocolRequestWriter {{ pos: {}, buf: "{}" }}"#,
-               self.pos, AsAscii(&self.buf[..]))
+        write!(f,
+               r#"ProtocolRequestWriter {{ pos: {}, buf: "{}" }}"#,
+               self.pos,
+               AsAscii(&self.buf[..]))
     }
 }
 
@@ -107,7 +120,7 @@ impl ProtocolRequestWriter {
     // ~ returns 'true' if the request was fully written out
     fn write<W: TryWrite>(&mut self, w: &mut W) -> Result<bool> {
         while (self.pos as usize) < self.buf.len() {
-            match try!(w.try_write(&self.buf[self.pos as usize ..])) {
+            match try!(w.try_write(&self.buf[self.pos as usize..])) {
                 None => return Ok(false),
                 Some(0) => return Ok(false),
                 Some(len) => {
@@ -129,12 +142,12 @@ struct ProtocolResponseReader {
     preemble: ResponsePreemble,
     // ~ the number of bytes expected (originating from the
     // corresponding request); used for verification purposes only
-    expected_bytes: u32, 
+    expected_bytes: u32,
     // ~ the number of bytes awaiting to read (as determined from the
     // preemble)
-    awaiting_bytes: u32, 
+    awaiting_bytes: u32,
     // ~ the actually response data payload
-    data: Vec<u8>, 
+    data: Vec<u8>,
 }
 
 impl ProtocolResponseReader {
@@ -165,7 +178,7 @@ impl ProtocolResponseReader {
         // ~ try parsing the preemble if neccessary
         if (self.preemble.pos as usize) < self.preemble.buf.len() {
             loop {
-                match try!(r.try_read(&mut self.preemble.buf[self.preemble.pos as usize ..])) {
+                match try!(r.try_read(&mut self.preemble.buf[self.preemble.pos as usize..])) {
                     None => return Ok(false),
                     Some(0) => return Ok(false),
                     Some(n) => {
@@ -191,7 +204,7 @@ impl ProtocolResponseReader {
             match try!(r.try_read_buf(&mut self.data)) {
                 None => return Ok(false),
                 Some(0) => return Ok(false),
-                Some(_) =>  {
+                Some(_) => {
                     if self.data.len() == self.awaiting_bytes as usize {
                         return Ok(true);
                     }
@@ -214,8 +227,11 @@ struct Connection<T> {
 
 impl<T> fmt::Debug for Connection<T> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "Connection {{ peer_addr: {:?}, local_addr: {:?}, interests: {:?} }}",
-               self.socket.peer_addr(), self.socket.local_addr(), self.interests)
+        write!(f,
+               "Connection {{ peer_addr: {:?}, local_addr: {:?}, interests: {:?} }}",
+               self.socket.peer_addr(),
+               self.socket.local_addr(),
+               self.interests)
     }
 }
 
@@ -248,9 +264,10 @@ impl<T> Connection<T> {
         evt_loop.reregister(&self.socket, token, self.interests, PollOpt::oneshot())
     }
 
-    fn on_writable<H: Handler>(&mut self, evt_loop: &mut EventLoop<H>, token: Token)
-                               -> Result<bool>
-    {
+    fn on_writable<H: Handler>(&mut self,
+                               evt_loop: &mut EventLoop<H>,
+                               token: Token)
+                               -> Result<bool> {
         assert!(self.curr_req.is_some());
         if try!(self.writer.write(&mut self.socket)) {
             // ~ switch from "write-" to "read-mode"
@@ -261,9 +278,10 @@ impl<T> Connection<T> {
         Ok(false)
     }
 
-    fn on_readable<H: Handler>(&mut self, evt_loop: &mut EventLoop<H>, token: Token)
-                               -> Result<bool>
-    {
+    fn on_readable<H: Handler>(&mut self,
+                               evt_loop: &mut EventLoop<H>,
+                               token: Token)
+                               -> Result<bool> {
         assert!(self.curr_req.is_some());
         if try!(self.reader.read(&mut self.socket)) {
             // ~ we're done. stop reading.
@@ -301,22 +319,34 @@ struct NetworkClientHandler<T> {
 
 impl<T> NetworkClientHandler<T> {
     fn on_hup<H: Handler>(&mut self, evt_loop: &mut EventLoop<H>, token: Token) {
-        trace!("OnHup (token: {:?}) (client: {:?})", token, self.conns[&token.0]);
+        trace!("OnHup (token: {:?}) (client: {:?})",
+               token,
+               self.conns[&token.0]);
         if let Some(mut client) = self.conns.remove(&token.0) {
             client.shutdown(evt_loop, "OnHup: Connection closed".into());
         }
     }
 
-    fn handle<F, H>(&mut self, evt_loop: &mut EventLoop<H>,
-                 token: Token, handler: F, handler_name: &str) -> bool
+    fn handle<F, H>(&mut self,
+                    evt_loop: &mut EventLoop<H>,
+                    token: Token,
+                    handler: F,
+                    handler_name: &str)
+                    -> bool
         where F: Fn(&mut Connection<T>, &mut EventLoop<H>, Token) -> Result<bool>,
               H: Handler
     {
-        trace!("{} (token: {:?}) (client: {:?})", handler_name, token, self.conns[&token.0]);
+        trace!("{} (token: {:?}) (client: {:?})",
+               handler_name,
+               token,
+               self.conns[&token.0]);
         match handler(self.conns.get_mut(&token.0).unwrap(), evt_loop, token) {
             Err(e) => {
                 trace!("{} error => Disconnecting: (token: {:?}) (client: {:?}): {:?}",
-                        handler_name, token, self.conns[&token.0], e);
+                       handler_name,
+                       token,
+                       self.conns[&token.0],
+                       e);
                 if let Some(mut client) = self.conns.remove(&token.0) {
                     client.shutdown(evt_loop, format!("{} error: {:?}", handler_name, e));
                 }
@@ -407,11 +437,16 @@ impl<T: Send + 'static> NetworkClient<T> {
         })
     }
 
-    pub fn request_async(
-        &self, client: usize, reply: mpsc::Sender<Response<T>>, req: ProtocolRequest<T>)
-        -> Result<()>
-    {
-        let r = HandlerRequest { client: client, reply: reply, req: req };
+    pub fn request_async(&self,
+                         client: usize,
+                         reply: mpsc::Sender<Response<T>>,
+                         req: ProtocolRequest<T>)
+                         -> Result<()> {
+        let r = HandlerRequest {
+            client: client,
+            reply: reply,
+            req: req,
+        };
         self.channel.send(r).map_err(|e| io::Error::new(io::ErrorKind::Other, format!("{:?}", e)))
     }
 
