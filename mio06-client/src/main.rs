@@ -23,7 +23,7 @@ fn main() {
 
     let client = client::new::<()>().unwrap();
     let c1 = client.connect(&addrs[0]).unwrap();
-    let c2 = client.connect(&addrs[0]).unwrap();
+    let c2 = client.connect(&addrs[1]).unwrap();
     for i in 0..REQS_PER_CONN {
         c1.request(client::Request::new(i * 10, (1 + i) as u8, b'x' + i as u8, ()),
                      tx.clone())
@@ -33,13 +33,13 @@ fn main() {
             .unwrap();
     }
 
-    let mut i = 2*REQS_PER_CONN;
+    let mut i = 2 * REQS_PER_CONN;
     for r in rx {
+        println!("Received: {:?}", r);
+        i -= 1;
         if i == 0 {
             break;
         }
-        i -= 1;
-        println!("Received: {:?}", r);
     }
 
     // XXX close the connections
