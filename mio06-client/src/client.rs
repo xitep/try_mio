@@ -382,6 +382,10 @@ impl<T> Conn<T> {
         }
     }
 
+    fn deregister(&self, poll: &Poll) -> io::Result<()> {
+        poll.deregister(&self.socket)
+    }
+
     fn register(&self, poll: &Poll, token: Token) -> io::Result<()> {
         poll.register(&self.socket, token, self.interests, PollOpt::oneshot())
     }
@@ -483,13 +487,13 @@ impl<T> Conn<T> {
 // note: the event loop is started immediately in a background thread
 // such that when communicating with it through the client we can
 // assume two distinct threads participating in the communication.
-pub fn new<T: Send + 'static>() -> io::Result<Client<T>> {
+pub fn new<T: Send + 'static>(max_conns: usize) -> io::Result<Client<T>> {
     let poll = try!(Poll::new());
     let (tx, rx) = channel::channel();
     try!(poll.register(&rx, EVT_LOOP_RX_TOKEN, Ready::all(), PollOpt::oneshot()));
     let th = thread::spawn(move || {
         let evt_loop = EventLoop {
-            conns: Slab::with_capacity(16),
+            conns: Slab::with_capacity(max_conns),
             poll: poll,
             rx: rx,
         };
@@ -510,14 +514,28 @@ pub struct Connection<T> {
     tx: channel::Sender<Cmd<T>>,
 }
 
-// XXX impl Drop for Connection<T> ... posting a "close the connection" event to the event-loop
+impl<T> Drop for Connection<T> {
+    fn drop(&mut self) {
+        if self.conn_token != CONN_DISCONNECTED {
+            let _ = self.tx.send(Cmd::DisconnectSilently(self.conn_token));
+        }
+    }
+}
 
 impl<T> Connection<T> {
     pub fn request(&self, req: Request<T>, tx: mpsc::Sender<Response<T>>) -> io::Result<()> {
         send_cmd(&self.tx, Cmd::Request(self.conn_token, req, tx))
     }
 
-    // XXX pub fn close(self) {...}
+    pub fn close(mut self) -> io::Result<()> {
+        let (tx, rx) = mpsc::sync_channel(1);
+        try!(send_cmd(&self.tx, Cmd::Disconnect(self.conn_token, tx)));
+        self.conn_token = CONN_DISCONNECTED;
+        match rx.recv().map_err(|_| end_of_evtloop()) {
+            Err(e) => Err(e),
+            Ok(r) => r,
+        }
+    }
 }
 
 impl<T> Client<T> {
@@ -556,6 +574,7 @@ fn end_of_evtloop() -> io::Error {
 }
 
 const EVT_LOOP_RX_TOKEN: Token = Token(usize::MAX - 1);
+const CONN_DISCONNECTED: Token = Token(usize::MAX - 2);
 
 struct EventLoop<T> {
     conns: Slab<Conn<T>, Token>,
@@ -568,6 +587,8 @@ enum Cmd<T> {
     Shutdown,
     Connect(SocketAddr, mpsc::SyncSender<io::Result<Token>>),
     Request(Token, Request<T>, mpsc::Sender<Response<T>>),
+    Disconnect(Token, mpsc::SyncSender<io::Result<()>>),
+    DisconnectSilently(Token),
 }
 
 enum Progress {
@@ -637,6 +658,7 @@ impl<T> EventLoop<T> {
         };
         match cmd {
             Cmd::Shutdown => {
+                // XXX close all open connections
                 trace!("cmd::shutdown: Stopping event loop.");
                 // XXX might want to make this rather a graceful shutdown
                 return Ok(Progress::Stop);
@@ -693,6 +715,22 @@ impl<T> EventLoop<T> {
                             }
                         }
                     }
+                }
+            }
+            Cmd::Disconnect(token, tx) => {
+                match self.conns.remove(token) {
+                    None => {
+                        tx.send(Ok(())).expect("client stopped waiting for answer?");
+                    }
+                    Some(conn) => {
+                        let _ = conn.deregister(&self.poll);
+                        tx.send(Ok(())).expect("client stopped waiting for answer?");
+                    }
+                };
+            }
+            Cmd::DisconnectSilently(token) => {
+                if let Some(conn) = self.conns.remove(token) {
+                    let _ = conn.deregister(&self.poll);
                 }
             }
         }
