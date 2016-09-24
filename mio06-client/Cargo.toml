@@ -1,0 +1,10 @@
+[package]
+name = "mio06-client"
+version = "0.1.0"
+authors = ["Novotnik, Petr <petr.novotnik@firma.seznam.cz>"]
+
+[dependencies]
+mio = "0.6"
+slab = "0.3"
+log = "0.3"
+env_logger = { version = "0.3", default-features = false }
